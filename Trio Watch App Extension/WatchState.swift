@@ -15,16 +15,16 @@ import WatchConnectivity
     var lastWatchStateUpdate: TimeInterval?
 
     /// main view relevant metrics
-    var currentGlucose: String = "--"
+    var currentGlucose: String? = nil
     var currentGlucoseColorString: String = "#ffffff"
     var trend: String? = ""
-    var delta: String? = "--"
+    var delta: String? = nil
     var glucoseValues: [(date: Date, glucose: Double, color: Color)] = []
     var minYAxisValue: Decimal = 39
     var maxYAxisValue: Decimal = 200
-    var cob: String? = "--"
-    var iob: String? = "--"
-    var lastLoopTime: String? = "--"
+    var cob: String? = nil
+    var iob: String? = nil
+    var lastLoopTime: String? = nil
     var overridePresets: [OverridePresetWatch] = []
     var tempTargetPresets: [TempTargetPresetWatch] = []
 
@@ -39,12 +39,18 @@ import WatchConnectivity
     // Safety limits
     var maxBolus: Decimal = 10
     var maxCarbs: Decimal = 250
+    var maxCOB: Decimal = 120
     var maxFat: Decimal = 250
     var maxProtein: Decimal = 250
 
     // Pump specific dosing increment
     var bolusIncrement: Decimal = 0.05
     var confirmBolusFaster: Bool = false
+    
+    // Bolus progress tracking
+    var bolusProgress: Double = 0.0
+    var activeBolusAmount: Double = 0.0
+    var isBolusCanceled: Bool = false
 
     // Acknowlegement handling
     var showCommsAnimation: Bool = false
@@ -78,6 +84,7 @@ import WatchConnectivity
     override init() {
         super.init()
         setupSession()
+        startPeriodicRefresh()
     }
 
     /// Configures the WatchConnectivity session if supported on the device
@@ -93,6 +100,45 @@ import WatchConnectivity
         } else {
             Task {
                 await WatchLogger.shared.log("⌚️ WCSession is not supported on this device")
+            }
+        }
+    }
+    
+    /// Starts a periodic timer to refresh data if it becomes stale
+    private func startPeriodicRefresh() {
+        Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { _ in
+            Task {
+                await self.checkAndRefreshStaleData()
+            }
+        }
+    }
+    
+    /// Checks if data is stale and requests fresh data if needed
+    private func checkAndRefreshStaleData() async {
+        // Only try to refresh if we have a session and it's reachable
+        guard let session = session, 
+              session.activationState == .activated,
+              session.isReachable else {
+            return
+        }
+        
+        // Check if data is stale (older than 2 minutes)
+        let now = Date().timeIntervalSince1970
+        if let lastUpdate = lastWatchStateUpdate {
+            let timeSinceUpdate = now - lastUpdate
+            if timeSinceUpdate > 120 { // 2 minutes
+                await WatchLogger.shared.log("⌚️ Data is stale (\(timeSinceUpdate)s old), requesting refresh")
+                DispatchQueue.main.async {
+                    self.showSyncingAnimation = true
+                    self.requestWatchStateUpdate()
+                }
+            }
+        } else {
+            // No data at all, request it
+            await WatchLogger.shared.log("⌚️ No data available, requesting initial data")
+            DispatchQueue.main.async {
+                self.showSyncingAnimation = true
+                self.requestWatchStateUpdate()
             }
         }
     }
@@ -163,7 +209,9 @@ import WatchConnectivity
                     await WatchLogger.shared.log("⌚️ Watch session activated with state: \(activationState.rawValue)")
                 }
 
-                self.forceConditionalWatchStateUpdate()
+                // Always request fresh data when session activates
+                self.showSyncingAnimation = true
+                self.requestWatchStateUpdate()
 
                 self.isReachable = session.isReachable
 
@@ -288,7 +336,9 @@ import WatchConnectivity
             }
 
             if session.isReachable {
-                self.forceConditionalWatchStateUpdate()
+                // Always request fresh data when connection is reestablished
+                self.showSyncingAnimation = true
+                self.requestWatchStateUpdate()
 
                 // reset input amounts
                 self.bolusAmount = 0
@@ -414,6 +464,16 @@ import WatchConnectivity
         }
         finalizeWorkItem = workItem
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.4, execute: workItem)
+        
+        // 5) Add a timeout to ensure syncing animation doesn't get stuck
+        DispatchQueue.main.asyncAfter(deadline: .now() + 15) {
+            if self.showSyncingAnimation {
+                Task {
+                    await WatchLogger.shared.log("⚠️ Syncing animation timeout - forcing stop")
+                }
+                self.showSyncingAnimation = false
+            }
+        }
     }
 
     /// Applies all pending data to the watch state in one shot
@@ -570,6 +630,24 @@ import WatchConnectivity
         if let confirmBolusFaster = message[WatchMessageKeys.confirmBolusFaster] {
             if let booleanValue = confirmBolusFaster as? Bool {
                 self.confirmBolusFaster = booleanValue
+            }
+        }
+        
+        if let bolusProgress = message[WatchMessageKeys.bolusProgress] {
+            if let doubleValue = bolusProgress as? Double {
+                self.bolusProgress = doubleValue
+            }
+        }
+        
+        if let activeBolusAmount = message[WatchMessageKeys.activeBolusAmount] {
+            if let doubleValue = activeBolusAmount as? Double {
+                self.activeBolusAmount = doubleValue
+            }
+        }
+        
+        if let bolusCanceled = message[WatchMessageKeys.bolusCanceled] {
+            if let booleanValue = bolusCanceled as? Bool {
+                self.isBolusCanceled = booleanValue
             }
         }
     }
