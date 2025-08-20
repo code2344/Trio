@@ -69,9 +69,8 @@ final class BaseWatchManager: NSObject, WCSessionDelegate, Injectable, WatchMana
             .receive(on: DispatchQueue.global(qos: .background))
             .sink { [weak self] _ in
                 guard let self = self else { return }
-                // Skip if no watch is paired or app not installed
-                guard let session = self.session, session.isPaired, session.isReachable,
-                      session.isWatchAppInstalled else { return }
+                // Only check if watch is paired - be less strict about other conditions
+                guard let session = self.session, session.isPaired else { return }
                 Task {
                     let state = await self.setupWatchState()
                     await self.sendDataToWatch(state)
@@ -85,8 +84,8 @@ final class BaseWatchManager: NSObject, WCSessionDelegate, Injectable, WatchMana
     private func registerHandlers() {
         coreDataPublisher?.filteredByEntityName("OrefDetermination").sink { [weak self] _ in
             guard let self = self else { return }
-            // Skip if no watch is paired or app not installed
-            guard let session = self.session, session.isPaired, session.isReachable, session.isWatchAppInstalled else { return }
+            // Only check if watch is paired - be less strict about other conditions
+            guard let session = self.session, session.isPaired else { return }
             Task {
                 let state = await self.setupWatchState()
                 await self.sendDataToWatch(state)
@@ -96,8 +95,8 @@ final class BaseWatchManager: NSObject, WCSessionDelegate, Injectable, WatchMana
         // Due to the Batch insert this only is used for observing Deletion of Glucose entries
         coreDataPublisher?.filteredByEntityName("GlucoseStored").sink { [weak self] _ in
             guard let self = self else { return }
-            // Skip if no watch is paired or app not installed
-            guard let session = self.session, session.isPaired, session.isReachable, session.isWatchAppInstalled else { return }
+            // Only check if watch is paired - be less strict about other conditions
+            guard let session = self.session, session.isPaired else { return }
             Task {
                 let state = await self.setupWatchState()
                 await self.sendDataToWatch(state)
@@ -113,8 +112,8 @@ final class BaseWatchManager: NSObject, WCSessionDelegate, Injectable, WatchMana
 
         coreDataPublisher?.filteredByEntityName("OverrideStored").sink { [weak self] _ in
             guard let self = self else { return }
-            // Skip if no watch is paired or app not installed
-            guard let session = self.session, session.isPaired, session.isReachable, session.isWatchAppInstalled else { return }
+            // Only check if watch is paired - be less strict about other conditions
+            guard let session = self.session, session.isPaired else { return }
             Task {
                 let state = await self.setupWatchState()
                 await self.sendDataToWatch(state)
@@ -123,8 +122,8 @@ final class BaseWatchManager: NSObject, WCSessionDelegate, Injectable, WatchMana
 
         coreDataPublisher?.filteredByEntityName("TempTargetStored").sink { [weak self] _ in
             guard let self = self else { return }
-            // Skip if no watch is paired or app not installed
-            guard let session = self.session, session.isPaired, session.isReachable, session.isWatchAppInstalled else { return }
+            // Only check if watch is paired - be less strict about other conditions
+            guard let session = self.session, session.isPaired else { return }
             Task {
                 let state = await self.setupWatchState()
                 await self.sendDataToWatch(state)
@@ -461,16 +460,22 @@ final class BaseWatchManager: NSObject, WCSessionDelegate, Injectable, WatchMana
     /// Sends the state of type WatchState to the connected Watch
     /// - Parameter state: Current WatchState containing glucose data to be sent
     @MainActor func sendDataToWatch(_ state: WatchState) async {
-        guard let session = session else { return }
+        guard let session = session else { 
+            debug(.watchManager, "⌚️❌ No session available")
+            return 
+        }
 
         guard session.isPaired else {
             debug(.watchManager, "⌚️❌ No Watch is paired")
             return
         }
 
-        guard session.isWatchAppInstalled else {
-            debug(.watchManager, "⌚️❌ Trio Watch app is")
-            return
+        // Log session state for debugging
+        debug(.watchManager, "📱 Sending data to watch - activationState: \(session.activationState), isReachable: \(session.isReachable), isWatchAppInstalled: \(session.isWatchAppInstalled)")
+
+        // Be more lenient about watch app installation check - sometimes this can be false positive
+        if !session.isWatchAppInstalled {
+            debug(.watchManager, "⚠️ Watch app may not be installed, but trying to send data anyway")
         }
 
         guard session.activationState == .activated else {
@@ -478,6 +483,7 @@ final class BaseWatchManager: NSObject, WCSessionDelegate, Injectable, WatchMana
             debug(.watchManager, "⌚️ Watch session activationState = \(activationStateString). Reactivating...")
             session.activate()
             return
+        }
         }
 
         // Skip if we already sent this state or older
@@ -492,11 +498,13 @@ final class BaseWatchManager: NSObject, WCSessionDelegate, Injectable, WatchMana
         // if session is reachable, it means watch App is in the foreground -> send watchState as message
         // if session is not reachable, it means it's in background -> send watchState as userInfo
         if session.isReachable {
+            debug(.watchManager, "📤 Sending WatchState as message (foreground)")
             session.sendMessage([WatchMessageKeys.watchState: message], replyHandler: nil) { error in
                 debug(.watchManager, "❌ Error sending watch state: \(error)")
             }
             WatchStateSnapshot.saveLatestDateToDisk(state.date)
         } else {
+            debug(.watchManager, "📤 Sending WatchState as userInfo (background)")
             WatchStateSnapshot.saveLatestDateToDisk(state.date)
             session.transferUserInfo([WatchMessageKeys.watchState: message])
             debug(.watchManager, "📤 Transferred new WatchState snapshot via userInfo")
@@ -549,9 +557,21 @@ final class BaseWatchManager: NSObject, WCSessionDelegate, Injectable, WatchMana
             {
                 debug(.watchManager, "📱 Watch requested watch state data update.")
                 guard let self = self else { return }
-                // Skip if no watch is paired or app not installed
-                guard let session = self.session, session.isPaired, session.isReachable,
-                      session.isWatchAppInstalled else { return }
+                
+                // Log session state for debugging
+                if let session = self.session {
+                    debug(.watchManager, "📱 Session state - isPaired: \(session.isPaired), isReachable: \(session.isReachable), isWatchAppInstalled: \(session.isWatchAppInstalled)")
+                } else {
+                    debug(.watchManager, "📱 No session available for watch request")
+                    return
+                }
+                
+                // Be less strict about reachability - if we're receiving a message, the watch is reachable enough
+                guard let session = self.session, session.isPaired else { 
+                    debug(.watchManager, "📱 Watch not paired - ignoring request")
+                    return 
+                }
+                
                 Task {
                     let state = await self.setupWatchState()
                     await self.sendDataToWatch(state)
