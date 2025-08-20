@@ -265,4 +265,28 @@ extension WatchState {
             }
         }
     }
+    
+    /// Requests fresh data when the main view appears
+    /// This ensures we have current data when the user opens the watch app
+    func requestDataOnAppear() async {
+        await WatchLogger.shared.log("⌚️ Main view appeared - requesting fresh data")
+        
+        // Always show syncing animation when explicitly requesting data
+        DispatchQueue.main.async {
+            self.showSyncingAnimation = true
+        }
+        
+        // Force a data request regardless of timing
+        requestWatchStateUpdate()
+        
+        // If we don't get data within 10 seconds, try again
+        DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
+            if self.lastWatchStateUpdate == nil {
+                Task {
+                    await WatchLogger.shared.log("⌚️ No data received after 10 seconds, retrying...")
+                }
+                self.requestWatchStateUpdate()
+            }
+        }
+    }
 }

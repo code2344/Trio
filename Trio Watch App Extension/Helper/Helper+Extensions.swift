@@ -13,6 +13,11 @@ extension Binding where Value == Int {
 extension Color {
     static let bgDarkBlue = Color("Background_DarkBlue")
     static let bgDarkerDarkBlue = Color("Background_DarkerDarkBlue")
+    static let loopGreen = Color.green
+    static let loopYellow = Color.yellow  
+    static let loopRed = Color.red
+    static let insulin = Color.blue
+    static let tabBar = Color.gray
 }
 
 extension String {
