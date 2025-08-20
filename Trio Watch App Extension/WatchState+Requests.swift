@@ -289,4 +289,42 @@ extension WatchState {
             }
         }
     }
+    
+    /// Sends a request to cancel the current bolus to the paired iPhone
+    func sendCancelBolusRequest() {
+        guard let session = session, session.isReachable else {
+            Task {
+                await WatchLogger.shared.log("⌚️ Cancel bolus request aborted: session unreachable")
+            }
+            return
+        }
+
+        Task {
+            await WatchLogger.shared.log("⌚️ Sending cancel bolus request")
+        }
+
+        let message: [String: Any] = [
+            WatchMessageKeys.cancelBolus: true
+        ]
+
+        session.sendMessage(message, replyHandler: nil) { error in
+            Task {
+                await WatchLogger.shared.log("⌚️ Error sending cancel bolus request: \(error)")
+                await WatchLogger.shared.log("⌚️ Saving logs to disk as fallback!")
+                await WatchLogger.shared.persistLogsLocally()
+            }
+        }
+        
+        // Reset bolus tracking state immediately
+        DispatchQueue.main.async {
+            self.isBolusCanceled = true
+            self.bolusProgress = 0
+            self.activeBolusAmount = 0
+            self.showCommsAnimation = true
+        }
+        
+        Task {
+            await WatchLogger.shared.log("⌚️ showCommsAnimation = true")
+        }
+    }
 }

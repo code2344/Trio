@@ -39,12 +39,18 @@ import WatchConnectivity
     // Safety limits
     var maxBolus: Decimal = 10
     var maxCarbs: Decimal = 250
+    var maxCOB: Decimal = 120
     var maxFat: Decimal = 250
     var maxProtein: Decimal = 250
 
     // Pump specific dosing increment
     var bolusIncrement: Decimal = 0.05
     var confirmBolusFaster: Bool = false
+    
+    // Bolus progress tracking
+    var bolusProgress: Double = 0.0
+    var activeBolusAmount: Double = 0.0
+    var isBolusCanceled: Bool = false
 
     // Acknowlegement handling
     var showCommsAnimation: Bool = false
@@ -624,6 +630,24 @@ import WatchConnectivity
         if let confirmBolusFaster = message[WatchMessageKeys.confirmBolusFaster] {
             if let booleanValue = confirmBolusFaster as? Bool {
                 self.confirmBolusFaster = booleanValue
+            }
+        }
+        
+        if let bolusProgress = message[WatchMessageKeys.bolusProgress] {
+            if let doubleValue = bolusProgress as? Double {
+                self.bolusProgress = doubleValue
+            }
+        }
+        
+        if let activeBolusAmount = message[WatchMessageKeys.activeBolusAmount] {
+            if let doubleValue = activeBolusAmount as? Double {
+                self.activeBolusAmount = doubleValue
+            }
+        }
+        
+        if let bolusCanceled = message[WatchMessageKeys.bolusCanceled] {
+            if let booleanValue = bolusCanceled as? Bool {
+                self.isBolusCanceled = booleanValue
             }
         }
     }
