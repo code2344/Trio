@@ -120,14 +120,14 @@ struct TrioMainWatchView: View {
                         Image(systemName: "syringe.fill")
                             .foregroundStyle(Color.insulin)
 
-                        Text(isWatchStateDated || isSessionUnreachable ? "--" : state.iob ?? "--")
+                        Text(isWatchStateDated || isSessionUnreachable ? "--" : (state.iob ?? "NO DATA"))
                             .foregroundStyle(isWatchStateDated ? Color.secondary : Color.white)
                     }.font(.caption2)
                 }
 
                 ToolbarItem(placement: .topBarTrailing) {
                     HStack {
-                        Text(isWatchStateDated || isSessionUnreachable ? "--" : state.cob ?? "--")
+                        Text(isWatchStateDated || isSessionUnreachable ? "--" : (state.cob ?? "NO DATA"))
                             .foregroundStyle(isWatchStateDated || isSessionUnreachable ? Color.secondary : Color.white)
 
                         Image(systemName: "fork.knife")
