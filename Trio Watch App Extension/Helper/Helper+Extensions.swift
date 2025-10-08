@@ -10,16 +10,6 @@ extension Binding where Value == Int {
     }
 }
 
-extension Color {
-    static let bgDarkBlue = Color("Background_DarkBlue")
-    static let bgDarkerDarkBlue = Color("Background_DarkerDarkBlue")
-    static let loopGreen = Color("LoopGreen")
-    static let loopYellow = Color("LoopYellow")
-    static let loopRed = Color("LoopRed")
-    static let insulin = Color("Insulin")
-    static let tabBar = Color("TabBar")
-}
-
 extension String {
     func toColor() -> Color {
         var hexString = trimmingCharacters(in: .whitespacesAndNewlines)
