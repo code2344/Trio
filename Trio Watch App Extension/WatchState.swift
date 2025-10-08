@@ -15,16 +15,16 @@ import WatchConnectivity
     var lastWatchStateUpdate: TimeInterval?
 
     /// main view relevant metrics
-    var currentGlucose: String? = nil
+    var currentGlucose: String = "--"
     var currentGlucoseColorString: String = "#ffffff"
     var trend: String? = ""
-    var delta: String? = nil
+    var delta: String? = "--"
     var glucoseValues: [(date: Date, glucose: Double, color: Color)] = []
     var minYAxisValue: Decimal = 39
     var maxYAxisValue: Decimal = 200
-    var cob: String? = nil
-    var iob: String? = nil
-    var lastLoopTime: String? = nil
+    var cob: String? = "--"
+    var iob: String? = "--"
+    var lastLoopTime: String? = "--"
     var overridePresets: [OverridePresetWatch] = []
     var tempTargetPresets: [TempTargetPresetWatch] = []
 

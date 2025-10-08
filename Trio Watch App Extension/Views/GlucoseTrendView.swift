@@ -132,26 +132,13 @@ struct GlucoseTrendView: View {
                 .shadow(color: Color.black.opacity(0.5), radius: 5)
 
                 VStack(alignment: .center) {
-                    if let currentGlucose = state.currentGlucose {
-                        Text(isWatchStateDated ? "--" : currentGlucose)
-                            .fontWeight(.semibold)
-                            .font(currentGlucoseFontSize)
-                            .foregroundStyle(isWatchStateDated ? Color.secondary : state.currentGlucoseColorString.toColor())
-                    } else {
-                        Text("NO DATA")
-                            .fontWeight(.semibold)
-                            .font(currentGlucoseFontSize)
-                            .foregroundStyle(Color.secondary)
-                    }
+                    Text(isWatchStateDated ? "--" : state.currentGlucose)
+                        .fontWeight(.semibold)
+                        .font(currentGlucoseFontSize)
+                        .foregroundStyle(isWatchStateDated ? Color.secondary : state.currentGlucoseColorString.toColor())
 
                     if let delta = state.delta {
                         Text(isWatchStateDated ? "--" : delta)
-                            .fontWeight(.semibold)
-                            .font(.system(.caption))
-                            .foregroundStyle(.secondary)
-                    } else if state.currentGlucose != nil {
-                        // Only show "--" for delta if we have glucose but no delta
-                        Text("--")
                             .fontWeight(.semibold)
                             .font(.system(.caption))
                             .foregroundStyle(.secondary)
@@ -164,7 +151,8 @@ struct GlucoseTrendView: View {
             Text(
                 isWatchStateDated ?
                     String(localized: "STALE DATA", comment: "Information displayed when watch app data outdated or stale.") :
-                    (state.lastLoopTime ?? String(localized: "NO DATA", comment: "Information displayed when no loop data is available."))
+                    state
+                    .lastLoopTime ?? "--"
             )
             .font(.system(size: minutesAgoFontSize))
             .fontWidth(isWatchStateDated ? .expanded : .standard)
