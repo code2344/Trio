@@ -100,6 +100,11 @@ struct TrioMainWatchView: View {
                 /// Reset `bolusAmount` and `recommendedBolus` to ensure no stale / old value is set when user opens bolus input or meal combo the next time.
                 state.bolusAmount = 0
                 state.recommendedBolus = 0
+                
+                /// Request fresh data when the view appears to ensure we have current data
+                Task {
+                    await state.requestDataOnAppear()
+                }
             }
             .background(trioBackgroundColor)
             .tabViewStyle(.verticalPage)

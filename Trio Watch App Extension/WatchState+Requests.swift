@@ -265,4 +265,66 @@ extension WatchState {
             }
         }
     }
+    
+    /// Requests fresh data when the main view appears
+    /// This ensures we have current data when the user opens the watch app
+    func requestDataOnAppear() async {
+        await WatchLogger.shared.log("⌚️ Main view appeared - requesting fresh data")
+        
+        // Always show syncing animation when explicitly requesting data
+        DispatchQueue.main.async {
+            self.showSyncingAnimation = true
+        }
+        
+        // Force a data request regardless of timing
+        requestWatchStateUpdate()
+        
+        // If we don't get data within 10 seconds, try again
+        DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
+            if self.lastWatchStateUpdate == nil {
+                Task {
+                    await WatchLogger.shared.log("⌚️ No data received after 10 seconds, retrying...")
+                }
+                self.requestWatchStateUpdate()
+            }
+        }
+    }
+    
+    /// Sends a request to cancel the current bolus to the paired iPhone
+    func sendCancelBolusRequest() {
+        guard let session = session, session.isReachable else {
+            Task {
+                await WatchLogger.shared.log("⌚️ Cancel bolus request aborted: session unreachable")
+            }
+            return
+        }
+
+        Task {
+            await WatchLogger.shared.log("⌚️ Sending cancel bolus request")
+        }
+
+        let message: [String: Any] = [
+            WatchMessageKeys.cancelBolus: true
+        ]
+
+        session.sendMessage(message, replyHandler: nil) { error in
+            Task {
+                await WatchLogger.shared.log("⌚️ Error sending cancel bolus request: \(error)")
+                await WatchLogger.shared.log("⌚️ Saving logs to disk as fallback!")
+                await WatchLogger.shared.persistLogsLocally()
+            }
+        }
+        
+        // Reset bolus tracking state immediately
+        DispatchQueue.main.async {
+            self.isBolusCanceled = true
+            self.bolusProgress = 0
+            self.activeBolusAmount = 0
+            self.showCommsAnimation = true
+        }
+        
+        Task {
+            await WatchLogger.shared.log("⌚️ showCommsAnimation = true")
+        }
+    }
 }
