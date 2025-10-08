@@ -25,3 +25,12 @@ extension String {
         return Color(red: red, green: green, blue: blue)
     }
 }
+
+extension Color {
+    static let loopGreen = Color("LoopGreen")
+    static let loopRed = Color("LoopRed")
+    static let insulin = Color("Insulin")
+    static let bgDarkBlue = Color("Background_DarkBlue")
+    static let bgDarkerDarkBlue = Color("Background_DarkerDarkBlue")
+    static let tabBar = Color("TabBar")
+}
